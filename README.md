@@ -10,20 +10,22 @@ This repository contains scripts, configuration files, and utilities developed *
 
 ## ⚠️ Usage Notice
 
-This repository is intended **only for internal use** by the above-mentioned team members during the **ECE470 / ME445 Laboratory courses**.  
-Please **do not fork, redistribute, or reuse** the code outside of this specific context without permission.
+This repository is intended **only for internal academic use** by the above-listed members for **ECE470 / ME445 Laboratory courses**.
+
+> **Unauthorized use, copying, distribution, or publication** of any part of this code is strictly prohibited.  
+> Violators may be subject to academic integrity actions or copyright claims.
 
 ---
 
 ## 📁 Contents
 
-- Control and kinematics scripts for UR robots  
-- Lab configuration and setup notes  
-- Supporting tools for trajectory generation and testing  
+- UR robot kinematics and control scripts  
+- Trajectory generation and test utilities  
+- Lab configuration notes
 
 ---
 
 ## 🧩 License
 
-This project is **not open-source**.  
-All rights reserved © Chaohua Yao, Kerui Xie, Ding Jiang.
+All rights reserved © 2025 Chaohua Yao, Kerui Xie, Ding Jiang.  
+This repository is **not open source** and **may not be reused** in any form without explicit written permission.
