@@ -27,5 +27,6 @@ This repository is intended **only for internal academic use** by the above-list
 
 ## 🧩 License
 
-All rights reserved © 2025 Chaohua Yao, Kerui Xie, Ding Jiang.  
-This repository is **not open source** and **may not be reused** in any form without explicit written permission.
+Licensed under the **Academic Restricted License (ARL)**.  
+See the [LICENSE](./LICENSE) file for details.  
+All rights reserved © 2025 Chaohua Yao, Kerui Xie, Ding Jiang.
