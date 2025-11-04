@@ -1,169 +1,159 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-'''
-lab3pkg_hanoi/lab3_ur3e.py
-
-@brief: UR3e class including functions for controlling the UR3e arm and the gripper.
-'''
-
 import time
 import rospy
 
-# Import message headers and types
-from lab3_header import *
+from ur_msgs.msg import IOStates
+from ur_msgs.srv import SetIO, SetIORequest, SetIOResponse
+from sensor_msgs.msg import JointState
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
-class UR3e():
 
-    def __init__(self):
+class UR3e:
+    def __init__(self, gripper_pin=0, setio_srv_name="/ur3e_driver_ece470/setio"):
+        """
+        :param gripper_pin: digital output pin index for the vacuum (default 0)
+        :param setio_srv_name: service name for ur_msgs/SetIO
+        """
+        self.gripper_pin = int(gripper_pin)
+        self.setio_srv_name = setio_srv_name
 
-        # Store current arm and gripper state
-        self.current_position = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        self.current_io_0 = False  # suction cup state (True = ON, False = OFF)
+        # Cached states
+        self.current_position = [0.0] * 6
+        self.current_io_0 = False  # Whether the gripper pin is ON
 
-        # Publisher for joint motion control
-        self.pub_setjoint = rospy.Publisher('ur3e_driver_ece470/setjoint',
-                                            JointTrajectory, queue_size=10)
+        # Publishers
+        self.pub_setjoint = rospy.Publisher(
+            "ur3e_driver_ece470/setjoint", JointTrajectory, queue_size=10
+        )
 
-        # TODO: define a publisher for gripper I/O control
-        self.pub_setio = rospy.Publisher('ur3e_driver_ece470/setio',
-                                         SetIO, queue_size=10)
+        # Subscribers
+        self.sub_position = rospy.Subscriber(
+            "/joint_states", JointState, self.position_callback
+        )
+        self.sub_io = rospy.Subscriber(
+            "/ur_hardware_interface/io_states", IOStates, self.gripper_input_callback
+        )
 
-        # Subscriber for joint state feedback
-        self.sub_position = rospy.Subscriber('/joint_states',
-                                             JointState, self.position_callback)
+        # Service client for SetIO
+        rospy.loginfo("Waiting for SetIO service: %s", self.setio_srv_name)
+        rospy.wait_for_service(self.setio_srv_name)
+        self.setio = rospy.ServiceProxy(self.setio_srv_name, SetIO)
+        rospy.loginfo("SetIO service connected.")
 
-        # TODO: define subscriber for gripper state feedback
-        self.sub_io = rospy.Subscriber('/ur_hardware_interface/io_states',
-                                       IOStates, self.gripper_input_callback)
-
-        # These will be initialized later
+        # To be filled by init_array
         self.home = None
         self.Q = None
-    
+
     def init_array(self, home, Q):
-        """Initialize home position and tower position array Q"""
+        """Set the home joint configuration and the contact array Q[row][col]."""
         self.home = home
         self.Q = Q
 
-    def gripper_input_callback(self, msg):
+    # ---------- Callbacks ----------
+
+    def gripper_input_callback(self, msg: IOStates):
         """
-        Callback for gripper I/O state.
-        Updates the suction state (self.current_io_0) whenever
-        /ur_hardware_interface/io_states publishes data.
+        Update self.current_io_0 from /ur_hardware_interface/io_states.
+        We look up digital_out_states and read our configured pin.
         """
-        # ----------- Your Code -----------
         state = None
         try:
-            if hasattr(msg, 'digital_out_states') and len(msg.digital_out_states) > 0:
-                state = bool(msg.digital_out_states[0].state)
+            for d in msg.digital_out_states:
+                if d.pin == self.gripper_pin:
+                    state = bool(d.state)
+                    break
         except Exception:
             pass
-
-        if state is None:
-            try:
-                if hasattr(msg, 'standard_digital_output') and len(msg.standard_digital_output) > 0:
-                    state = bool(msg.standard_digital_output[0])
-            except Exception:
-                pass
-
-        if state is None:
-            try:
-                if hasattr(msg, 'tool_output'):
-                    state = bool(msg.tool_output)
-            except Exception:
-                pass
 
         if state is not None:
             self.current_io_0 = state
-        # ----------- End Code -----------
 
-    def position_callback(self, msg):
+    def position_callback(self, msg: JointState):
         """
-        Callback for current arm position.
-        Updates self.current_position from /joint_states messages.
+        Update self.current_position using /joint_states in the controller's expected order.
         """
-        desired_order = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
-                         "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
+        desired = [
+            "shoulder_pan_joint",
+            "shoulder_lift_joint",
+            "elbow_joint",
+            "wrist_1_joint",
+            "wrist_2_joint",
+            "wrist_3_joint",
+        ]
         try:
             name_to_pos = {n: p for n, p in zip(msg.name, msg.position)}
-            self.current_position = [name_to_pos.get(jn, 0.0) for jn in desired_order]
+            self.current_position = [name_to_pos.get(j, 0.0) for j in desired]
         except Exception:
             pass
 
-    def gripper(self, io_0):
-        """
-        Publish to 'ur3e_driver_ece470/setio' to control the gripper suction cup.
-        """
-        msg = SetIO()
-        # Handle different possible field names
-        if hasattr(msg, 'io_0'):
-            msg.io_0 = bool(io_0)
-        elif hasattr(msg, 'state'):
-            msg.state = bool(io_0)
-        elif hasattr(msg, 'output'):
-            msg.output = bool(io_0)
-        else:
-            try:
-                setattr(msg, 'io_0', bool(io_0))
-            except Exception:
-                pass
+    # ---------- Gripper & Motion ----------
 
-        self.pub_setio.publish(msg)
-        time.sleep(0.2)
-        self.current_io_0 = bool(io_0)
+    def gripper(self, on: bool) -> bool:
+        """
+        Control the vacuum via ur_msgs/SetIO.
+        :param on: True -> ON, False -> OFF
+        :return: service call success
+        """
+        req = SetIORequest()
+        req.fun = SetIORequest.FUN_SET_DIGITAL_OUT   # 1
+        req.pin = self.gripper_pin
+        req.state = float(SetIORequest.STATE_ON if on else SetIORequest.STATE_OFF)
+        try:
+            resp: SetIOResponse = self.setio(req)
+            if not resp.success:
+                rospy.logerr("SetIO failed: pin=%d on=%s", self.gripper_pin, on)
+            else:
+                self.current_io_0 = bool(on)
+            # small delay to allow valve to settle
+            time.sleep(0.2)
+            return bool(resp.success)
+        except rospy.ServiceException as e:
+            rospy.logerr("SetIO service call failed: %s", e)
+            return False
 
     def move_arm(self, dest):
-        """
-        Move the UR3e arm to a desired joint configuration.
-        """
+        """Send a 2s joint trajectory to the desired joint positions (rad)."""
         msg = JointTrajectory()
-        msg.joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
-                           "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
-        point = JointTrajectoryPoint()
-        point.positions = dest
-        point.time_from_start = rospy.Duration(2.0)
-        msg.points.append(point)
+        msg.joint_names = [
+            "shoulder_pan_joint",
+            "shoulder_lift_joint",
+            "elbow_joint",
+            "wrist_1_joint",
+            "wrist_2_joint",
+            "wrist_3_joint",
+        ]
+        pt = JointTrajectoryPoint()
+        pt.positions = dest
+        pt.time_from_start = rospy.Duration(2.0)
+        msg.points.append(pt)
         self.pub_setjoint.publish(msg)
-        time.sleep(2.5)  # allow motion to finish
+        time.sleep(2.5)
 
     def move_block(self, start_loc, start_height, end_loc, end_height):
         """
-        Move a block from (start_loc, start_height) to (end_loc, end_height).
-
-        Steps:
-        1. Move to home (safe position)
-        2. Move down to pick-up position Q[start_height][start_loc]
-        3. Turn gripper ON
-        4. Lift up to home
-        5. Move to drop-off position Q[end_height][end_loc]
-        6. Turn gripper OFF
-        7. Return to home
+        Pick at Q[start_height][start_loc], place at Q[end_height][end_loc], with home in between.
         """
         assert self.Q is not None and self.home is not None, "Call init_array(home, Q) first."
 
         pick_pose = self.Q[start_height][start_loc]
         place_pose = self.Q[end_height][end_loc]
 
-        # 1. Move to home (safe height)
+        # Safe raise
         self.move_arm(self.home)
 
-        # 2. Move down to pick-up position
+        # Pick
         self.move_arm(pick_pose)
+        if not self.gripper(True):
+            raise RuntimeError("Gripper ON failed via SetIO.")
+        # Optional: check IO feedback; if your setup reports vacuum success on another pin, read it here.
 
-        # 3. Turn gripper ON (suction)
-        self.gripper(True)
-        time.sleep(0.3)
-
-        # 4. Lift up to home
         self.move_arm(self.home)
 
-        # 5. Move down to place position
+        # Place
         self.move_arm(place_pose)
+        if not self.gripper(False):
+            raise RuntimeError("Gripper OFF failed via SetIO.")
 
-        # 6. Turn gripper OFF (release)
-        self.gripper(False)
-        time.sleep(0.3)
-
-        # 7. Lift up to home
         self.move_arm(self.home)
