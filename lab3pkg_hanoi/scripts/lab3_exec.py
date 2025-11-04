@@ -45,18 +45,27 @@ def main():
 	"""
 	############## Your Code Start Here ##############
 
-	home = np.radians([69.53,-80.59 ,86.32 ,-95.81 ,-89.62 ,16.34 ])
-	
-	Q = np.zeros((3,3,6))
-	Q[0][0] = np.radians([57.52,-62.22 ,104.62 , -132.49,-89.76 ,127.22 ])
-	Q[1][0] = np.radians([57.51,-58.55 ,106.09 ,-137.63 ,-89.79 ,127.28 ])
-	Q[2][0] = np.radians([57.51, -54.54,107.06 ,-142.61 ,-89.82 ,127.29 ])
-	Q[0][1] = np.radians([69.73,-63.86 ,107.27,-133.50 ,-89.77 ,139.49 ])
-	Q[1][1] = np.radians([69.73,-59.87 ,108.84 ,-139.05 ,-89.80 ,139.50 ])
-	Q[2][1] = np.radians([69.73,-56.20 ,109.72 ,-143.61 ,-89.82 ,139.51 ])
-	Q[0][2] = np.radians([83.42,-61.71 ,103.83 ,-132.20 ,-89.76 ,153.17 ])
-	Q[1][2] = np.radians([83.41,-58.05 ,105.30 ,-137.33 ,-89.79 ,153.18 ])
-	Q[2][2] = np.radians([83.41, -54.28,106.22 ,-142.03 ,-89.81 ,153.19 ])
+	home = np.radians([64.31,-71.89,39.32,-58.71,-89.04,244.52])
+
+    # Example contact joint angles for each tower/level
+    # !!! Replace these with your calibrated joint angles !!!
+	Q = [
+        [  # Top layer
+            np.radians([79.07,-61.77,105.74,-135.24,-88.26,246.63]),  # Tower 1 top
+            np.radians([67.42, -61.92, 105.84, -134.72, -91.37, 237.90]),    # Tower 2 top
+            np.radians([54.52, -59.69, 101.52, -131.97, -89.19, 242.19]),   # Tower 3 top
+        ],
+        [  # Middle layer
+            np.radians([79.49, -57.91, 106.57, -139.92, -89.02, 246.13]),  # Tower 1 mid
+            np.radians([66.58, -58.50,106.87,-138.25,-90.02,242.30,]),    # Tower 2 mid
+            np.radians([55.40, -55.95, 102.25, -136.58, -91.33, 242.21]),   # Tower 3 mid
+        ],
+        [  # Bottom layer
+            np.radians([79.94,-53.97,107.07,-144.37,-90.04,244.65]),  # Tower 1 bottom
+            np.radians([66.88, -54.46, 108.20, -144.78, -90.23, 242.15]),    # Tower 2 bottom
+            np.radians([54.69, -52.25, 101.88, -138.36, -89.44, 240.27]),   # Tower 3 bottom
+        ],
+    ]
 
 	############### Your Code End Here ###############
 
@@ -71,25 +80,29 @@ def main():
 	mid = 1
 	des = 2
 
+    # Example contact joint angles for each tower/level
+    # !!! Replace these with your calibrated joint angles !!!
+
 	while not input_done:
 		input_string1 = input("Enter number of loops <Either 1 2 3 or 0 to quit> ")
 		print("You entered " + input_string1 + "\n")
 
+
 		if int(input_string1) == 1:
 			input_done = 1
 			#loop_count = 1
-			start = 0
+			des = 0
 		elif int(input_string1) == 2:
 			input_done = 1
 			#loop_count = 2
-			start = 1
+			des = 1
 		elif int(input_string1) == 3:
 			input_done = 1
 			#loop_count = 3
-			start = 2
+			des = 2
 		elif int(input_string1) == 0:
 			print("Quitting... ")
-			 #sys.exit()
+			# sys.exit()
 		else:
 			print("Please just enter the character 1 2 3 or 0 to quit \n\n")
 
@@ -113,7 +126,9 @@ def main():
 			sys.exit()
 		else:
 			print("Please just enter the character 1 2 3 or 0 to quit \n\n")
-	
+
+
+
 	if (start == 0 and des == 1) or (start == 1 and des == 0):
 		mid = 2
 	elif (start == 1 and des == 2) or (start == 2 and des == 1):
@@ -147,7 +162,7 @@ def main():
 	ur3e.move_block(start, 2, des, 0)
 	# Move back to home position
 	ur3e.move_arm(home)
-
+4.26, -80.21, 85.16, -97.82, -90.55, 246.6
 	############### Your Code End Here ###############
 
 if __name__ == '__main__':
