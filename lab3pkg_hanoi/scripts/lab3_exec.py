@@ -1,12 +1,13 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 '''
+
 lab3pkg_hanoi/lab3_exec.py
 
 @brief: Hanoi implementation in ROS.
 @author: Songjie Xiao
 @date: Monday 2023/3/20
+
 '''
 
 import sys
@@ -16,131 +17,142 @@ import numpy as np
 
 from lab3_ur3e import UR3e
 
-
 def main():
 
-    # Initialize ROS node
-    rospy.init_node('lab3_node')
+	# Initialize ROS node
+	rospy.init_node('lab3_node')
 
-    # ==============================
-    # Define tower configuration
-    # ==============================
-    #
-    # Q[row][col]: joint angles for contact positions
-    #   row = 0/1/2 → top/middle/bottom block
-    #   col = 0/1/2 → tower 1/2/3
-    #
-    # Each element in Q should be a NumPy array of 6 joint angles (in radians)
-    # corresponding to the position where the suction cup just touches
-    # the block at that tower and height.
-    #
-    # Steps (suggested):
-    # 1) Move to home position
-    # 2) Move down to the contact position of the start block
-    # 3) Pick the block (enable suction)
-    # 4) Move back to home
-    # 5) Move to the contact position of the destination block
-    # 6) Place the block (disable suction)
-    # 7) Return to home
+	# Definition of our tower
 
-    # ---------- Define home and tower positions ----------
+	# block contact position
+	# | Q[0][0] Q[0][1] Q[0][2] |   Contact point of top block
+	# | Q[1][0] Q[1][1] Q[1][2] |   Contact point of middle block
+	# | Q[2][0] Q[2][1] Q[2][2] |   Contact point of bottom block
+	# | Tower1  Tower2  Tower3  |
 
-    # Example home position (replace with your own safe home joint angles)
-    home = np.radians([0.0, -90.0, 90.0, -90.0, -90.0, 0.0])
+	# First index - From "top" to "bottom"
+	# Second index - From "left" to "right"
 
-    # Example contact joint angles for each tower/level
-    # !!! Replace these with your calibrated joint angles !!!
-    Q = [
-        [  # Top layer
-            np.radians([-15, -100, 90, -80, -90, 0]),  # Tower 1 top
-            np.radians([0, -100, 90, -80, -90, 0]),    # Tower 2 top
-            np.radians([15, -100, 90, -80, -90, 0]),   # Tower 3 top
-        ],
-        [  # Middle layer
-            np.radians([-15, -110, 95, -75, -90, 0]),  # Tower 1 mid
-            np.radians([0, -110, 95, -75, -90, 0]),    # Tower 2 mid
-            np.radians([15, -110, 95, -75, -90, 0]),   # Tower 3 mid
-        ],
-        [  # Bottom layer
-            np.radians([-15, -120, 100, -70, -90, 0]),  # Tower 1 bottom
-            np.radians([0, -120, 100, -70, -90, 0]),    # Tower 2 bottom
-            np.radians([15, -120, 100, -70, -90, 0]),   # Tower 3 bottom
-        ],
-    ]
+	# How the arm will move (Suggestions)
+	# 1. Go to the "home" position
+	# 2. Drop to the "contact (start) block" position
+	# 3. Rise back to the "home" position
+	# 4. Drop to the corresponding "contact (end) block" position
+	# 5. Rise back to the "home" position
 
-    # ---------- Get user input for start and destination towers ----------
+	"""
+	TODO: define position of our tower in Q array and home position of the arm
+	"""
+	############## Your Code Start Here ##############
 
-    def ask_peg(name):
-        while True:
-            s = input(f"Select {name} tower (enter 1 / 2 / 3, or 0 to quit): ").strip()
-            if s == "0":
-                print("Quitting...")
-                sys.exit(0)
-            if s in ("1", "2", "3"):
-                return int(s) - 1
-            print("Invalid input. Please enter 1, 2, 3, or 0.")
+	home = np.radians([69.53,-80.59 ,86.32 ,-95.81 ,-89.62 ,16.34 ])
+	
+	Q = np.zeros((3,3,6))
+	Q[0][0] = np.radians([57.52,-62.22 ,104.62 , -132.49,-89.76 ,127.22 ])
+	Q[1][0] = np.radians([57.51,-58.55 ,106.09 ,-137.63 ,-89.79 ,127.28 ])
+	Q[2][0] = np.radians([57.51, -54.54,107.06 ,-142.61 ,-89.82 ,127.29 ])
+	Q[0][1] = np.radians([69.73,-63.86 ,107.27,-133.50 ,-89.77 ,139.49 ])
+	Q[1][1] = np.radians([69.73,-59.87 ,108.84 ,-139.05 ,-89.80 ,139.50 ])
+	Q[2][1] = np.radians([69.73,-56.20 ,109.72 ,-143.61 ,-89.82 ,139.51 ])
+	Q[0][2] = np.radians([83.42,-61.71 ,103.83 ,-132.20 ,-89.76 ,153.17 ])
+	Q[1][2] = np.radians([83.41,-58.05 ,105.30 ,-137.33 ,-89.79 ,153.18 ])
+	Q[2][2] = np.radians([83.41, -54.28,106.22 ,-142.03 ,-89.81 ,153.19 ])
 
-    start = ask_peg("start")
-    des = ask_peg("destination")
-    while des == start:
-        print("Start and destination towers cannot be the same.")
-        des = ask_peg("destination")
+	############### Your Code End Here ###############
 
-    mid = 3 - start - des  # The remaining tower
+	# This program will require two user inputs to specify the start location and end location of the block
+	# TODO: modify the code below so that program can get two user inputs
+	############## Your Code Start Here ##############
 
-    rospy.loginfo(f"Start = Tower {start+1}, Destination = Tower {des+1}, Aux = Tower {mid+1}")
-    rospy.loginfo("Sending Goals ...")
+	# example code for getting user input is provided below
+	input_done = 0
+	#loop_count = 0
+	start = 0
+	mid = 1
+	des = 2
 
-    # ---------- Initialize the robot ----------
+	while not input_done:
+		input_string1 = input("Enter number of loops <Either 1 2 3 or 0 to quit> ")
+		print("You entered " + input_string1 + "\n")
 
-    ur3e = UR3e()
-    ur3e.init_array(home, Q)
-    time.sleep(1.0)
-    ur3e.move_arm(home)
-    time.sleep(0.5)
+		if int(input_string1) == 1:
+			input_done = 1
+			#loop_count = 1
+			start = 0
+		elif int(input_string1) == 2:
+			input_done = 1
+			#loop_count = 2
+			start = 1
+		elif int(input_string1) == 3:
+			input_done = 1
+			#loop_count = 3
+			start = 2
+		elif int(input_string1) == 0:
+			print("Quitting... ")
+			 #sys.exit()
+		else:
+			print("Please just enter the character 1 2 3 or 0 to quit \n\n")
 
-    # ---------- Tower of Hanoi logic ----------
+		input_string2 = input("Enter number of loops <Either 1 2 3 or 0 to quit> ")
+		print("You entered " + input_string2 + "\n")
 
-    # Keep track of each tower's blocks (2=bottom, 1=middle, 0=top)
-    stacks = {0: [], 1: [], 2: []}
-    stacks[start] = [2, 1, 0]
-    stacks[mid] = []
-    stacks[des] = []
+		if int(input_string2) == 1:
+			input_done = 1
+			#loop_count = 1
+			des = 0
+		elif int(input_string2) == 2:
+			input_done = 1
+			#loop_count = 2
+			des = 1
+		elif int(input_string2) == 3:
+			input_done = 1
+			#loop_count = 3
+			des = 2
+		elif int(input_string2) == 0:
+			print("Quitting... ")
+			sys.exit()
+		else:
+			print("Please just enter the character 1 2 3 or 0 to quit \n\n")
+	
+	if (start == 0 and des == 1) or (start == 1 and des == 0):
+		mid = 2
+	elif (start == 1 and des == 2) or (start == 2 and des == 1):
+		mid = 0
+	else:
+		mid = 1
+			
+	############### Your Code End Here ###############
 
-    def move_one_disk(src_col, dst_col):
-        """Move one disk from src_col to dst_col."""
-        if not stacks[src_col]:
-            raise RuntimeError(f"No disk to move from tower {src_col+1}")
+	rospy.loginfo("Sending Goals ...")
 
-        disk = stacks[src_col].pop()
-        src_row = len(stacks[src_col])     # after popping, the row matches remaining count
-        dst_row = len(stacks[dst_col])     # destination row before placing
+	# Main manipulation code defined here
+	# move_arm function is used to move the arm to a desired position
+	# move_block function is used to move a block from start to end location
+	# which includes moving the arm to the start location, gripping the block, moving the arm to the end location, and releasing the block
+	# TODO: here to define a series of move_block or move_arm function calls to solve the Hanoi Tower problem
+	############## Your Code Start Here ##############
 
-        rospy.loginfo(f"Move disk {disk}: Tower {src_col+1} (row {src_row}) -> Tower {dst_col+1} (row {dst_row})")
-        ur3e.move_block(src_col, src_row, dst_col, dst_row)
-        time.sleep(0.2)
+	# initialize ur3e class
+	ur3e = UR3e()
+	ur3e.init_array(home, Q)
+	time.sleep(2)
 
-        stacks[dst_col].append(disk)
+	# Solve Hanoi Tower
+	ur3e.move_block(start, 0, des, 2)
+	ur3e.move_block(start, 1, mid, 2)
+	ur3e.move_block(des, 2, mid, 1)
+	ur3e.move_block(start, 2, des, 2)
+	ur3e.move_block(mid, 1, start, 2)
+	ur3e.move_block(mid, 2, des, 1)
+	ur3e.move_block(start, 2, des, 0)
+	# Move back to home position
+	ur3e.move_arm(home)
 
-    def hanoi(n, src, aux, dst):
-        """Recursive Hanoi algorithm."""
-        if n == 1:
-            move_one_disk(src, dst)
-        else:
-            hanoi(n-1, src, dst, aux)
-            move_one_disk(src, dst)
-            hanoi(n-1, aux, src, dst)
-
-    # Solve 3-disk Tower of Hanoi
-    hanoi(3, start, mid, des)
-
-    # Return to home
-    ur3e.move_arm(home)
-    rospy.loginfo("Hanoi complete.")
-
+	############### Your Code End Here ###############
 
 if __name__ == '__main__':
-    try:
-        main()
-    except rospy.ROSInterruptException:
-        pass
+	try:
+		main()
+	# When Ctrl+C is executed, it catches the exception
+	except rospy.ROSInterruptException:
+		pass
