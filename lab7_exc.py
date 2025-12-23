@@ -11,13 +11,10 @@ lab7pkg_pick_place/lab7_exec.py
 
 '''
 
-'''
 # ckcamera api
 import sys
 sys.path.append("../utils/script/")
-from ckcamera import *
-'''
-
+#from ckcamera import *
 
 from lab7_func import *
 from lab7_ur3e import *
@@ -28,48 +25,28 @@ def main():
 	# Initialize ROS node
 	rospy.init_node('lab7_node')
 
-	'''
 	# Initialize CKCamera
-	camera = CKCamera()
-	camera.init()
+	# camera = CKCamera()
+	# camera.init()
 
-	# 1. save first calibration image
-	camera.display()
+	# # 1. save first calibration image, enter 's' to save image with an input of image_name
+	# camera.display()
+	# # 2. Free move the robot to obtain the robot coordinate (x,y) of first block
+	# # TODO: get input of robot coordinate (x,y) of first block
+	center_robot1 = (-458.50e-3,-101.68e-3)
+	# # 3. save second calibration image, enter 's' to save image with an input of image_name
+	# camera.display()
+	# # 4. Free move the robot to obtain the robot coordinate (x,y) of second block
+	# # TODO: get input of robot coordinate (x,y) of second block
+	center_robot2 = (-364.52e-3,-230.26e-3)
+	# # 5. save snapshot image, randomly place at least 5 blocks
+	# camera.display()
 
-	# 2. Free move the robot to obtain the robot coordinate (x,y) of first block
-	# ====================== ⚠️ YOU MUST DEFINE ======================
-	# center_robot1:
-	#   robot base frame (x, y) of calibration point 1
-	#   obtained by free-moving the robot and reading TCP position
-	# center_robot1 = (x1_robot, y1_robot)
-	# ================================================================
-	# center_robot1 = int(input("Please input the robot coordinate (x,y) of this block: "))
+	# # uninit CKCamera
+	# camera.uninit()
 
-	# 3. save second calibration image
-	camera.display()
-
-	# 4. Free move the robot to obtain the robot coordinate (x,y) of second block
-	# ====================== ⚠️ YOU MUST DEFINE ======================
-	# center_robot2:
-	#   robot base frame (x, y) of calibration point 2
-	#   obtained by free-moving the robot and reading TCP position
-	# center_robot2 = (x2_robot, y2_robot)
-	# ================================================================
-	# center_robot2 = int(input("Please input the robot coordinate (x,y) of this block: "))
-
-	# 5. save snapshot image
-	camera.display()
-
-	camera.uninit()
-	'''
-
-	# ====================== ⚠️ YOU MUST DEFINE ======================
-	# center_robot1, center_robot2 MUST be defined before this call
-	# They are used for pixel → robot coordinate calibration
-	# Example:
-	# center_robot1 = (0.12, 0.18)
-	# center_robot2 = (0.18, 0.10)
-	# ================================================================
+	# TODO: complete the coordinate transformation function in lab7_img.py
+	# 6. do Image Processing and coordinate transformation to obtain the robot coordinate (x,y) of each block
 	center_values, shape, theta = lab_imgproc(center_robot1, center_robot2)
 	
 	############## Your Code Start Here ############## 	
@@ -79,76 +56,90 @@ def main():
 	ur3e = UR3e()
 	print("Please Press 'Start' button on the Teach Pendant to continue ...")
 
+	# wait for the 'Start' button on the Teach Pendant
 	time.sleep(2)
 
-	# ====================== ⚠️ YOU MUST DEFINE ======================
-	# z_above : safe height above the table (avoid collision)
-	# z_pick  : actual picking height (depends on block thickness)
-	# z_place : placing height
-	# THESE VALUES MUST MATCH YOUR REAL SETUP
-	# ================================================================
-	z_above = 0.10
-	z_pick  = 0.02
-	z_place = 0.02
+	# call inverse kinematics to compute joint values according to robot coordinate
+	# z values is assigned by users
+	high_dest_position = [-311e-3,-182.9e-3, 177e-3]
+	rect_dest_position = [236.8e-3,-199.95e-3,100e-3]
+	oval_dest_position = [325.45e-3, -129.12e-3, 100e-3]
 
-	# ====================== ⚠️ YOU MUST DEFINE ======================
-	# destination layout in robot base frame
-	# base_x, base_y : starting position of sorting area
-	# dx, dy         : spacing between blocks
-	# These are DESIGN CHOICES, not given by TA
-	# ================================================================
-	base_x = 0.20
-	base_y = 0.10
-	dx = 0.04
-	dy = 0.04
 
-	count_rect = 0
-	count_elip = 0
+	dest_between = lab_invk(high_dest_position[0], high_dest_position[1], high_dest_position[2], 0)
+	
 
-	for i in range(len(center_values)):
-		x = center_values[i][0]   # already robot-frame (from lab7_img.py)
-		y = center_values[i][1]
-		ang = theta[i]
+	before_fetch_height = 100e-3
+	fetch_height = 68.35e-3
+	
+	# dest_pos = lab_invk(x, y, z, theta)
 
-		# ====================== ⚠️ YOU MUST DEFINE ======================
-		# classification rule:
-		# shape[i] == 0 → rectangle
-		# shape[i] == 1 → ellipse
-		# placement strategy is YOUR DESIGN
-		# ================================================================
-		if shape[i] == 0:
-			px = base_x + dx * (count_rect % 3)
-			py = base_y + dy * (count_rect // 3)
-			count_rect += 1
-		else:
-			px = base_x + 0.15 + dx * (count_elip % 3)
-			py = base_y + dy * (count_elip // 3)
-			count_elip += 1
+	# do the move_arm and gripper operation to pick and p# if not working, move yaw from herelace the block
 
-		# lab_invk MUST already be implemented in lab7_func.py (Lab 4/5)
-		dest_pos = lab_invk(x, y, z_above, ang)
-		ur3e.move(dest_pos)
+	# # first stack
+	r_counter = 0
+	o_counter = 0
 
-		dest_pos = lab_invk(x, y, z_pick, ang)
-		ur3e.move(dest_pos)
+	# move to somewhere in between
+	ur3e.move_arm(dest_between)
 
+
+	time.sleep(2)
+
+	# '''
+	for i in range(len(shape)):
+		# first get the block from original place
+		orig_position = center_values[i]
+		block_shape = shape[i]
+		block_yaw = theta[i]
+		print("Center value:", orig_position)
+		# print("block_yaw:", block_yaw)
+		# print("Center value:", orig_position)
+		# print("Center value:", orig_position)
+		# go to a higher place
+		dest_pos1 = lab_invk(orig_position[0], orig_position[1], before_fetch_height, 0)
+		ur3e.move_arm(dest_pos1)
+		# grip
+		# dest_pos2 = lab_invk(orig_position[0], orig_position[1], fetch_height, 0)					# if not working, move yaw from here
+		dest_pos2 = lab_invk(orig_position[0], orig_position[1], fetch_height,0)					# if not working, move yaw from here
+
+		ur3e.move_arm(dest_pos2)
 		ur3e.gripper(True)
-		time.sleep(0.5)
 
-		dest_pos = lab_invk(x, y, z_above, ang)
-		ur3e.move(dest_pos)
+		dest_pos3 = lab_invk(orig_position[0], orig_position[1], before_fetch_height, -block_yaw)					# if not working, move yaw from here
+		ur3e.move_arm(dest_pos3)
 
-		dest_pos = lab_invk(px, py, z_above, ang)
-		ur3e.move(dest_pos)
+		# move to somewhere in between
+		# dest_between = lab_invk(high_dest_position[0], high_dest_position[1], high_dest_position[2], 0)
+		# ur3e.move_arm(dest_between)
 
-		dest_pos = lab_invk(px, py, z_place, ang)
-		ur3e.move(dest_pos)
+		#release
+		if(block_shape == 0):
+			if (r_counter == 0):
+				theta0_orig_r = dest_pos3[0]
+			release_dest = lab_invk(rect_dest_position[0], rect_dest_position[1], rect_dest_position[2], -block_yaw)  # if not working, move yaw to here
+			# release_dest = lab_invk(rect_dest_position[0], rect_dest_position[1], rect_dest_position[2], block_yaw)  # if not working, move yaw to here
+			# release_dest = lab_invk(rect_dest_position[0], rect_dest_position[1], rect_dest_position[2], 0)  # if not working, move yaw to here
+			release_dest[5] -= dest_pos3[0] - theta0_orig_r
+			ur3e.move_arm(release_dest)
+			ur3e.gripper(False)
+			r_counter += 1
+		else:
+			if (o_counter == 0):
+				theta0_orig_o = dest_pos3[0]
+			# release_dest = lab_invk(oval_dest_position[0], oval_dest_position[1], oval_dest_position[2], block_yaw)  # if not working, move yaw to here
+			release_dest = lab_invk(oval_dest_position[0], oval_dest_position[1], oval_dest_position[2], -block_yaw)  # if not working, move yaw to here
+			release_dest[5] -= dest_pos3[0] - theta0_orig_o
+			ur3e.move_arm(release_dest)
+			time.sleep(2)
+			ur3e.gripper(False)
+			o_counter += 1
 
-		ur3e.gripper(False)
-		time.sleep(0.5)
+		# move to somewhere in between
+		ur3e.move_arm(dest_between)
+	# '''
 
-		dest_pos = lab_invk(px, py, z_above, ang)
-		ur3e.move(dest_pos)
+	# pass
 
 	############### Your Code End Here ###############
 
@@ -158,5 +149,6 @@ if __name__ == '__main__':
 	
 	try:
 		main()
+    # When Ctrl+C is executed, it catches the exception
 	except rospy.ROSInterruptException:
 		pass
